@@ -1,0 +1,146 @@
+import os
+import json
+from reserve_study_generator import ReserveStudyGenerator
+
+def main():
+    # Create sample property data
+    property_data = {
+        "name": "Golf View Manor II",
+        "address": "5635, 5651, 5667, 5683 Rattlesnake Hammock Rd",
+        "city": "Naples",
+        "state": "FL",
+        "zip": "34113",
+        "reference_id": "FL-69-705",
+        "inspection_date": "12/10/2024",
+        "construction_date": "1980",
+        "building_count": "4",
+        "stories": "3",
+        "unit_count": "75",
+        "building_area": "33,000 sq. ft.",
+        "superstructure": "Reinforced concrete/CMU walls",
+        "roofing_system": "Combined: flat and mansard",
+        "exterior_facade": "Painted stucco over concrete masonry unit (CMU)",
+        "heating": "Forced-air furnaces",
+        "cooling": "Split-system condensing units",
+        "electrical": "Copper",
+        "fire_suppression": "N/A"
+    }
+    
+    # Create sample component data
+    component_data = [
+        {
+            "name": "Roof - Flat, TPO - Replacement",
+            "description": "The roofs of the four (4) buildings are constructed of wood trusses with a plywood sheathing. The roofs are covered with a TPO membrane. The TPO membrane was last replaced in 2006. In 2022, the roof was resealed. The TPO membrane was observed to be in fair shape with no signs of leaking. MECA estimates a lifespan of 25 years for the TPO membrane. The estimated replacement cost is based on market supported cost per square. The cost includes removal of the membrane, minor repairs to the plywood sheathing, and replacement with a membrane of like quality.",
+            "quantity": 330,
+            "unit": "SQ",
+            "useful_life": 25,
+            "remaining_life": 11,
+            "replacement_cost": 448800
+        },
+        {
+            "name": "Roof - Mansard, Asphalt Shingle - Replacement",
+            "description": "The roofs have a sloped mansard end around the perimeter. The mansard ends are covered in asphalt shingles. The asphalt shingles were replaced in 2006. The asphalt shingles were observed to be in fair condition with some areas of excessive weathering. Near the Gulf Coast, MECA estimates a lifespan of 25 years for asphalt shingles. The estimated replacement cost is based on market supported cost per square. The cost includes removal of the existing shingles, repairs to the plywood sheathing, and replacement with a 30-year shingle of like quality.",
+            "quantity": 68,
+            "unit": "SQ",
+            "useful_life": 25,
+            "remaining_life": 8,
+            "replacement_cost": 49980
+        },
+        {
+            "name": "Stairways & Walkways - Repairs & Repainting",
+            "description": "The stairways and walkways were last repainted in 2021. Cracks were observed sporadically throughout, mostly on the ground floor. Additionally, areas of chipping and wear of the coating were observed throughout with most instances on the stairs. MECA recommends routing and sealing of cracks and touch up painting of worn areas of coating to extend the lifespan of the stairways and walkways. Additionally, MECA observed several guardrail posts which were loose and cracking from their embedment. MECA recommends repairing the handrail embedments to prevent water infiltration and deterioration of the concrete.",
+            "quantity": 11670,
+            "unit": "SF",
+            "useful_life": 7,
+            "remaining_life": 5,
+            "replacement_cost": 37928
+        },
+        {
+            "name": "Exterior Wall Finishes - Repainting",
+            "description": "The exterior finish is painted stucco. The exterior walls were last repainted in 2021. The exterior wall finishes were observed to be in good condition. A few small areas of stucco repairs were observed and in fair condition. MECA observed some staining of the paint throughout. The typical lifespan of light-colored paint near the Gulf Coast is 8-10 years. MECA recommends power washing and touch up painting to extend the lifespan of the coatings.",
+            "quantity": 39465,
+            "unit": "SF",
+            "useful_life": 10,
+            "remaining_life": 7,
+            "replacement_cost": 98663
+        },
+        {
+            "name": "Elevator - Replacement",
+            "description": "The building presently has two (2) 2,000 lbs. capacity hydraulic elevators. The elevators and controls were modernized in 2023. Inspection and maintenance of the elevators is routinely performed. Elevator controls and equipment typically have a useful life of 30 years. MECA has included cost to replace the elevators and controls at the end of their useful life.",
+            "quantity": 2,
+            "unit": "EA",
+            "useful_life": 30,
+            "remaining_life": 28,
+            "replacement_cost": 250000
+        },
+        {
+            "name": "Fire Alarm & Life Safety Systems - Replacement",
+            "description": "The fire alarm control panels were replaced within the last five (5) years and were observed to be in good condition. Life safety devices were observed throughout including fire extinguishers, audible alarms, fire alarm pulls, emergency exit signs and emergency lights. Some of the life safety systems were observed to be damaged. MECA recommends repairing and/or replacing the damaged life safety system devices as soon as possible.",
+            "quantity": 4,
+            "unit": "EA",
+            "useful_life": 15,
+            "remaining_life": 11,
+            "replacement_cost": 20000
+        },
+        {
+            "name": "Plumbing - Repairs",
+            "description": "The sanitary and domestic water supply plumbing are assumed to be of the original construction. The lifespan of a plumbing system depends on the type of material used, but is typically 50+ years with routine maintenance. The maintenance personnel did not reported any issues regarding the plumbing. MECA has included an allowance for regular inspections and maintenance in order to prevent unexpected plumbing repairs and to increase the longevity of the plumbing systems.",
+            "quantity": 1,
+            "unit": "LS",
+            "useful_life": 10,
+            "remaining_life": 8,
+            "replacement_cost": 25000
+        },
+        {
+            "name": "Electrical System - Supply Panel & Meter Bank - Replacement",
+            "description": "The electrical supply panels and meter banks were located in in a conditioned room. No information was provided regarding maintenance or replacement of the electrical components. The average lifespan of electrical meters and breakers is 25 years. MECA has included funds for future replacement and to update electrical components.",
+            "quantity": 1,
+            "unit": "LS",
+            "useful_life": 25,
+            "remaining_life": 20,
+            "replacement_cost": 35000
+        }
+    ]
+    
+    # Create sample financial data
+    financial_data = {
+        "starting_reserve_balance": 143858.40,
+        "annual_contribution": 42600,
+        "interest_rate": 3.05,
+        "funding_method": "pooled"  # or "straight-line"
+    }
+    
+    # Initialize the report generator
+    generator = ReserveStudyGenerator(
+        company_name="MECA Engineering Corporation",
+        company_address="5237 Summerlin Commons Blvd, Fort Myers, FL",
+        company_phone="(239) 275-2598"
+    )
+    
+    # Load the data
+    generator.load_property_data(data=property_data)
+    generator.load_component_data(data=component_data)
+    generator.load_financial_data(data=financial_data)
+    
+    # Generate the report
+    output_path = generator.generate_word_report("Golf_View_Manor_II_SIRS_Report.docx")
+    
+    print(f"Report generated successfully: {output_path}")
+    
+    # Optional: Save the data to JSON files for future use
+    os.makedirs("data", exist_ok=True)
+    
+    with open("data/property_data.json", "w") as f:
+        json.dump(property_data, f, indent=4)
+    
+    with open("data/component_data.json", "w") as f:
+        json.dump(component_data, f, indent=4)
+    
+    with open("data/financial_data.json", "w") as f:
+        json.dump(financial_data, f, indent=4)
+    
+    print("Sample data saved to 'data' directory")
+
+
+if __name__ == "__main__":
+    main()

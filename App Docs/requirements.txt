@@ -1,0 +1,37 @@
+# Requirements for Reserve Study Generator
+# Core dependencies
+python-docx>=0.8.11     # For Word document generation
+matplotlib>=3.5.0        # For chart generation
+numpy>=1.21.0           # For numerical calculations
+pandas>=1.3.0           # For data manipulation
+openpyxl>=3.0.9         # For Excel file handling (used by pandas)
+
+# Web API dependencies
+Flask>=2.0.0            # For REST API
+Werkzeug>=2.0.0         # Required by Flask
+Jinja2>=3.0.0           # Required by Flask
+itsdangerous>=2.0.0     # Required by Flask
+click>=8.0.0            # Required by Flask
+
+# For temporary file handling
+python-dateutil>=2.8.2   # For date manipulation
+pytz>=2021.3            # For timezone handling
+
+# Optional - PDF generation
+# Uncomment if PDF output is needed
+# reportlab>=3.6.2       # For PDF report generation
+
+# Optional - Excel file support for component data import/export
+# PyOpenXL is included above, but XlsxWriter provides better Excel writing
+xlsxwriter>=3.0.3       # For Excel file output
+
+# Image handling
+pillow>=9.0.0           # For image processing in reports
+
+# Development tools
+pytest>=6.2.5           # For unit testing
+black>=21.12b0          # For code formatting
+flake8>=4.0.1           # For code linting
+
+# Documentation
+Sphinx>=4.3.2           # For generating documentation

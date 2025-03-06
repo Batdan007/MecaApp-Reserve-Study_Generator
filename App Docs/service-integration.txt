@@ -1,0 +1,211 @@
+// serviceIntegration.js
+import * as XLSX from 'xlsx';
+import _ from 'lodash';
+
+export class ReportGenerationService {
+  constructor() {
+    this.officeTemplates = null;
+    this.documentProcessor = null;
+    this.multimediaProcessor = null;
+  }
+
+  async initialize() {
+    this.officeTemplates = await import('./officeTemplates').then(m => m.default);
+    this.documentProcessor = await import('./documentProcessor').then(m => m.default);
+    this.multimediaProcessor = await import('./multimediaProcessor').then(m => m.default);
+  }
+
+  validateReportData(data) {
+    const required = ['projectInfo', 'components', 'financials'];
+    const missing = required.filter(key => !data[key]);
+    if (missing.length > 0) {
+      throw new Error(`Missing required data: ${missing.join(', ')}`);
+    }
+    
+    return {
+      ...data,
+      projectInfo: this.validateProjectInfo(data.projectInfo),
+      components: this.validateComponents(data.components),
+      financials: this.validateFinancials(data.financials),
+      media: data.media || []
+    };
+  }
+
+  validateProjectInfo(info) {
+    const required = ['name', 'address', 'constructionDate', 'buildingCount'];
+    const missing = required.filter(key => !info[key]);
+    if (missing.length > 0) {
+      throw new Error(`Missing project info: ${missing.join(', ')}`);
+    }
+    return info;
+  }
+
+  validateComponents(components) {
+    if (!Array.isArray(components)) {
+      throw new Error('Components must be an array');
+    }
+    return components.map(c => ({
+      ...c,
+      replacementCost: Number(c.replacementCost) || 0,
+      usefulLife: Number(c.usefulLife) || 0,
+      remainingLife: Number(c.remainingLife) || 0
+    }));
+  }
+
+  validateFinancials(financials) {
+    const required = ['startingBalance', 'annualContribution', 'projectionYears'];
+    const missing = required.filter(key => !financials[key]);
+    if (missing.length > 0) {
+      throw new Error(`Missing financial data: ${missing.join(', ')}`);
+    }
+    return financials;
+  }
+
+  async generateExcelComponents(data) {
+    const workbook = XLSX.utils.book_new();
+    
+    // Component Inventory Sheet
+    const componentSheet = XLSX.utils.json_to_sheet(data.components);
+    XLSX.utils.book_append_sheet(workbook, componentSheet, 'Components');
+    
+    // Financial Analysis Sheet
+    const financialSheet = XLSX.utils.json_to_sheet(data.financials.yearlyData);
+    XLSX.utils.book_append_sheet(workbook, financialSheet, 'Financials');
+    
+    // Project Summary Sheet
+    const summaryData = [{
+      'Property Name': data.projectInfo.name,
+      'Address': data.projectInfo.address,
+      'Construction Date': data.projectInfo.constructionDate,
+      'Building Count': data.projectInfo.buildingCount,
+      'Total Components': data.components.length,
+      'Starting Balance': data.financials.startingBalance,
+      'Annual Contribution': data.financials.annualContribution
+    }];
+    const summarySheet = XLSX.utils.json_to_sheet(summaryData);
+    XLSX.utils.book_append_sheet(workbook, summarySheet, 'Summary');
+
+    return XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+  }
+
+  async generateWordComponents(data) {
+    const template = await this.officeTemplates.loadTemplate('word', 'full');
+    const context = this.officeTemplates.generateTemplateContext(data);
+    return this.officeTemplates.processTemplate(template, context);
+  }
+
+  async generatePresentationComponents(data) {
+    const template = await this.officeTemplates.loadTemplate('powerpoint', 'standard');
+    const context = this.officeTemplates.generateTemplateContext(data);
+    return this.officeTemplates.processTemplate(template, context);
+  }
+
+  async processMediaAssets(mediaFiles) {
+    const processed = {
+      images: [],
+      videos: [],
+      audio: []
+    };
+
+    for (const file of mediaFiles) {
+      const processedFile = await this.multimediaProcessor.processFile(file);
+      if (processedFile.type.startsWith('image/')) {
+        processed.images.push(processedFile);
+      } else if (processedFile.type.startsWith('video/')) {
+        processed.videos.push(processedFile);
+      } else if (processedFile.type.startsWith('audio/')) {
+        processed.audio.push(processedFile);
+      }
+    }
+
+    return processed;
+  }
+
+  async generateVideoPresentation(data, mediaAssets, voicePreferences) {
+    const slides = await this.generatePresentationSlides(data);
+    const narrationScript = this.generateNarrationScript(data);
+    const audioTrack = await this.generateNarration(narrationScript, voicePreferences);
+    
+    return this.multimediaProcessor.createVideo({
+      slides,
+      audio: audioTrack,
+      media: mediaAssets,
+      duration: this.calculatePresentationDuration(slides, narrationScript)
+    });
+  }
+
+  generateNarrationScript(data) {
+    return {
+      intro: `This report presents the reserve study analysis for ${data.projectInfo.name}, 
+              located at ${data.projectInfo.address}.`,
+      components: `The property contains ${data.components.length} major components 
+                   requiring regular maintenance and replacement.`,
+      financials: `Based on our analysis, we recommend an annual contribution of 
+                   $${data.financials.annualContribution.toLocaleString()}.`,
+      conclusion: `This concludes our reserve study presentation.`
+    };
+  }
+
+  async generateNarration(script, preferences) {
+    const audioSegments = await Promise.all(
+      Object.values(script).map(text => 
+        this.multimediaProcessor.generateSpeech(text, preferences)
+      )
+    );
+    return this.multimediaProcessor.concatenateAudio(audioSegments);
+  }
+
+  calculatePresentationDuration(slides, script) {
+    const wordsPerMinute = 150;
+    const wordCount = Object.values(script).join(' ').split(' ').length;
+    const narrationDuration = (wordCount / wordsPerMinute) * 60;
+    const slideDuration = slides.length * 10;
+    return Math.max(narrationDuration, slideDuration);
+  }
+
+  async compileReportPackage(components) {
+    return {
+      excel: components.excel,
+      word: components.word,
+      powerpoint: components.powerpoint,
+      media: components.media,
+      video: components.video,
+      metadata: {
+        generated: new Date().toISOString(),
+        version: '1.0.0'
+      }
+    };
+  }
+
+  downloadReport(reportPackage) {
+    // Create zip file containing all report components
+    const zip = new JSZip();
+
+    // Add Excel report
+    zip.file('financial_analysis.xlsx', reportPackage.excel);
+
+    // Add Word report
+    zip.file('detailed_report.docx', reportPackage.word);
+
+    // Add PowerPoint presentation
+    zip.file('presentation.pptx', reportPackage.powerpoint);
+
+    // Add media files
+    const mediaFolder = zip.folder('media');
+    reportPackage.media.images.forEach((img, i) => {
+      mediaFolder.file(`image_${i + 1}.jpg`, img.data);
+    });
+    reportPackage.media.videos.forEach((vid, i) => {
+      mediaFolder.file(`video_${i + 1}.mp4`, vid.data);
+    });
+
+    // Add video presentation if available
+    if (reportPackage.video) {
+      zip.file('video_presentation.mp4', reportPackage.video);
+    }
+
+    return zip.generateAsync({ type: 'blob' });
+  }
+}
+
+export default new ReportGenerationService();

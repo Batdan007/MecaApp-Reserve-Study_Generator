@@ -1,0 +1,222 @@
+import os
+import json
+import pandas as pd
+import matplotlib.pyplot as plt
+import openai
+from docx import Document
+
+class AIReportEnhancer:
+    """
+    A class to enhance reserve study reports with AI-generated content such as
+    component descriptions, maintenance recommendations, and visual analysis.
+    """
+    def __init__(self, api_key=None):
+        """
+        Initialize the AI enhancement module.
+        
+        Args:
+            api_key (str, optional): OpenAI API key. If not provided, will look for OPENAI_API_KEY in environment.
+        """
+        self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
+        if self.api_key:
+            openai.api_key = self.api_key
+        
+        self.property_data = {}
+        self.component_data = []
+        self.component_images = {}
+    
+    def load_data(self, property_data, component_data):
+        """Load property and component data."""
+        self.property_data = property_data
+        self.component_data = component_data
+    
+    def load_component_images(self, image_directory):
+        """
+        Load component images from a directory.
+        
+        Args:
+            image_directory (str): Path to directory containing component images.
+                                  Images should be named matching the component name.
+        """
+        if not os.path.exists(image_directory):
+            print(f"Image directory not found: {image_directory}")
+            return
+        
+        for component in self.component_data:
+            component_name = component.get("name", "")
+            # Look for image files that start with the component name
+            potential_images = [f for f in os.listdir(image_directory) 
+                               if f.lower().startswith(component_name.lower().replace(" ", "_"))]
+            
+            if potential_images:
+                self.component_images[component_name] = os.path.join(image_directory, potential_images[0])
+    
+    def generate_enhanced_descriptions(self):
+        """
+        Generate enhanced component descriptions using AI.
+        
+        Returns:
+            list: Updated component data with enhanced descriptions.
+        """
+        if not self.api_key:
+            print("OpenAI API key not provided. Skipping description enhancement.")
+            return self.component_data
+        
+        enhanced_components = []
+        
+        for component in self.component_data:
+            try:
+                # Generate enhanced description
+                prompt = f"""
+                You are a professional structural engineer analyzing a building component.
+                Component Name: {component['name']}
+                Useful Life: {component['useful_life']} years
+                Remaining Life: {component['remaining_life']} years
+                
+                Basic Description: {component.get('description', 'No description provided.')}
+                
+                Please enhance this description with:
+                1. More technical details about this component type
+                2. Potential failure modes and warning signs
+                3. Maintenance recommendations to extend its lifespan
+                4. Environmental factors that could affect this component
+                
+                Format your response as a professional engineering report paragraph. Be concise but thorough.
+                """
+                
+                response = openai.Completion.create(
+                    engine="gpt-4",
+                    prompt=prompt,
+                    max_tokens=400,
+                    temperature=0.7
+                )
+                
+                enhanced_description = response.choices[0].text.strip()
+                
+                # Add enhanced description to component
+                enhanced_component = component.copy()
+                enhanced_component["enhanced_description"] = enhanced_description
+                enhanced_components.append(enhanced_component)
+                
+            except Exception as e:
+                print(f"Error enhancing description for {component['name']}: {e}")
+                enhanced_components.append(component)
+        
+        return enhanced_components
+    
+    def generate_maintenance_recommendations(self):
+        """
+        Generate specific maintenance recommendations for each component using AI.
+        
+        Returns:
+            dict: Component name to maintenance recommendations mapping.
+        """
+        if not self.api_key:
+            print("OpenAI API key not provided. Skipping maintenance recommendations.")
+            return {}
+        
+        recommendations = {}
+        
+        for component in self.component_data:
+            try:
+                prompt = f"""
+                You are a professional structural engineer providing maintenance recommendations.
+                Component: {component['name']}
+                Useful Life: {component['useful_life']} years
+                Remaining Life: {component['remaining_life']} years
+                
+                Please provide a numbered list of 3-5 specific maintenance recommendations to maintain and extend the life of this component.
+                Each recommendation should be specific, actionable, and include recommended frequency.
+                """
+                
+                response = openai.Completion.create(
+                    engine="gpt-4",
+                    prompt=prompt,
+                    max_tokens=300,
+                    temperature=0.7
+                )
+                
+                recommendations[component['name']] = response.choices[0].text.strip()
+                
+            except Exception as e:
+                print(f"Error generating recommendations for {component['name']}: {e}")
+        
+        return recommendations
+    
+    def analyze_component_photos(self, image_paths):
+        """
+        Analyze component photos using AI vision to identify potential issues.
+        
+        Args:
+            image_paths (dict): Mapping of component names to image file paths
+            
+        Returns:
+            dict: Component name to analysis mapping.
+        """
+        if not self.api_key or not hasattr(openai, "Image"):
+            print("OpenAI API key not provided or API doesn't support image analysis. Skipping photo analysis.")
+            return {}
+        
+        analyses = {}
+        
+        for component_name, image_path in image_paths.items():
+            try:
+                if not os.path.exists(image_path):
+                    continue
+                    
+                # This would need to be updated based on the actual OpenAI Vision API
+                response = openai.Image.analyze(
+                    image=open(image_path, "rb"),
+                    prompt=f"Analyze this image of {component_name} and identify any visible issues, wear, damage, or maintenance concerns. Format your response as a professional engineering assessment."
+                )
+                
+                analyses[component_name] = response.choices[0].text.strip()
+                
+            except Exception as e:
+                print(f"Error analyzing photo for {component_name}: {e}")
+        
+        return analyses
+    
+    def enhance_report(self, report_path, output_path=None):
+        """
+        Enhance an existing report with AI-generated content.
+        
+        Args:
+            report_path (str): Path to existing Word report
+            output_path (str, optional): Path for enhanced report. If None, will add '_enhanced' to original filename.
+            
+        Returns:
+            str: Path to enhanced report
+        """
+        if not output_path:
+            filename, ext = os.path.splitext(report_path)
+            output_path = f"{filename}_enhanced{ext}"
+        
+        # Load the document
+        doc = Document(report_path)
+        
+        # Generate enhanced content
+        enhanced_components = self.generate_enhanced_descriptions()
+        maintenance_recommendations = self.generate_maintenance_recommendations()
+        
+        # Find component assessment section and enhance it
+        in_component_section = False
+        for i, paragraph in enumerate(doc.paragraphs):
+            if paragraph.text.strip() == "Component Assessment":
+                in_component_section = True
+                continue
+                
+            if in_component_section and paragraph.text.startswith("Exterior Building Components:"):
+                component_name = paragraph.text.replace("Exterior Building Components:", "").strip()
+                
+                # Find the matching enhanced component
+                enhanced_component = next((c for c in enhanced_components if c["name"] == component_name), None)
+                
+                if enhanced_component and "enhanced_description" in enhanced_component:
+                    # Find the description paragraph and replace it
+                    for j in range(i+1, min(i+10, len(doc.paragraphs))):
+                        if doc.paragraphs[j].text and not doc.paragraphs[j].text.startswith("Useful Life:"):
+                            doc.paragraphs[j].text = enhanced_component["enhanced_description"]
+                            break
+        
+        # Ad
