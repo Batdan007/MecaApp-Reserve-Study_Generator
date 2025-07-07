@@ -8,5 +8,7 @@
 			"path": "../../../Mecca Answers/MecaApp-Reserve-Study_Generator"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"git.ignoreLimitWarning": true
+	}
 }
